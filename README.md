@@ -57,28 +57,32 @@ Los resultados se exportan en formato JSON compatible con visualizaciones dendro
 
 ## Estructura del proyecto
 
+# clustering-comentarios
+
+```text
 clustering-comentarios/
 │
 ├── src/
-│ ├── main.py # Pipeline principal
-│ ├── preprocessing.py # Limpieza de texto
-│ ├── method_coseno.py # Método de similitud de coseno
-│ ├── method_jaccard.py # Método de similitud de Jaccard
-│ └── checkpoint_utils.py # Guardado/carga de checkpoints
+│   ├── main.py                      # Pipeline principal
+│   ├── preprocessing.py             # Limpieza de texto
+│   ├── method_coseno.py             # Método de similitud de coseno
+│   ├── method_jaccard.py            # Método de similitud de Jaccard
+│   └── checkpoint_utils.py          # Guardado/carga de checkpoints
 │
 ├── results/
-│ ├── clusters_coseno.json # Asignaciones método coseno
-│ ├── clusters_agregados_coseno.json # Estadísticas por cluster
-│ ├── dendrograma_coseno.json # Árbol jerárquico coseno
-│ ├── clusters_jaccard.json # Asignaciones método jaccard
-│ ├── clusters_agregados_jaccard.json # Estadísticas por cluster
-│ └── dendrograma_jaccard.json # Árbol jerárquico jaccard
+│   ├── clusters_coseno.json         # Asignaciones método coseno
+│   ├── clusters_agregados_coseno.json # Estadísticas por cluster
+│   ├── dendrograma_coseno.json      # Árbol jerárquico coseno
+│   ├── clusters_jaccard.json        # Asignaciones método jaccard
+│   ├── clusters_agregados_jaccard.json # Estadísticas por cluster
+│   └── dendrograma_jaccard.json     # Árbol jerárquico jaccard
 │
 ├── visualizacion/
-│ └── d3_4.html # Visualizador dendrograma interactivo
+│   └── d3_4.html                    # Visualizador dendrograma interactivo
 │
-├── requirements.txt # Dependencias del proyecto
-└── README.md # Este archivo
+├── requirements.txt                 # Dependencias del proyecto
+└── README.md                        # Este archivo
+```
 
 ---
 
