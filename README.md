@@ -64,7 +64,7 @@ Coseno_vs_Jaccard_Clustering/
 │   ├── method_coseno.py             # Método de similitud de coseno
 │   ├── method_jaccard.py            # Método de similitud de Jaccard
 │   └── checkpoint_utils.py          # Guardado/carga de checkpoints
-│    └── comentarios_solo_texto.csv  # Dataset de 237k de comentarios
+│   └── comentarios_solo_texto.csv  # Dataset de 237k comentarios
 │ 
 ├── results/
 │   ├── clusters_coseno.json         # Asignaciones método coseno
