@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dendrograma Interactivo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b27;
+    --bg3: #1e2535;
+    --border: #2a3347;
+    --accent: #4f8ef7;
+    --accent2: #7c5cfc;
+    --leaf: #34d399;
+    --internal: #60a5fa;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --highlight: #fbbf24;
+    --danger: #f87171;
+    --shadow: rgba(0,0,0,0.5);
+    --noise: #6b7280;
+    --panel-w: 320px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    z-index: 100;
+  }
+  .brand {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .brand span { color: var(--text2); font-weight: 400; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .btn {
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text2);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.08); }
+  .btn.active { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.12); }
+  .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  .sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+
+  .search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  #search {
+    padding: 5px 10px 5px 28px;
+    font-size: 11px;
+    font-family: inherit;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    width: 160px;
+    transition: all 0.15s;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); width: 200px; }
+  #search::placeholder { color: var(--text3); }
+  .search-icon {
+    position: absolute;
+    left: 8px;
+    color: var(--text3);
+    font-size: 12px;
+    pointer-events: none;
+  }
+
+  .slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text2);
+  }
+  #depth-slider {
+    width: 80px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  #depth-label {
+    font-size: 11px;
+    color: var(--accent);
+    min-width: 16px;
+    text-align: center;
+  }
+
+  /* UPLOAD ZONE */
+  #upload-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  .upload-card {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 64px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg2);
+    max-width: 520px;
+    width: 90%;
+  }
+  .upload-card:hover, .upload-card.drag-over {
+    border-color: var(--accent);
+    background: rgba(79,142,247,0.04);
+  }
+  .upload-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+  .upload-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+  }
+  .upload-sub {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .upload-sub code {
+    background: var(--bg3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--accent2);
+  }
+  #file-input { display: none; }
+
+  /* MAIN VIZ */
+  #viz-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    display: none;
+  }
+  #svg-container {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* STATS BAR */
+  #stats-bar {
+    display: none;
+    gap: 16px;
+    padding: 6px 20px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text3);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .stat { display: flex; align-items: center; gap: 5px; }
+  .stat-val { color: var(--text2); font-weight: 600; }
+  .stat-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* TOOLTIP */
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 9999;
+    max-width: 260px;
+  }
+  .tooltip-inner {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    box-shadow: 0 8px 32px var(--shadow);
+  }
+  .tt-name {
+    font-weight: 700;
+    color: var(--text);
+    font-size: 12px;
+    margin-bottom: 6px;
+    word-break: break-all;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .tt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+    color: var(--text2);
+  }
+  .tt-row span:last-child { color: var(--accent); font-weight: 500; }
+  .tt-type {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .tt-leaf { background: rgba(52,211,153,0.15); color: var(--leaf); }
+  .tt-internal { background: rgba(96,165,250,0.15); color: var(--internal); }
+  .tt-noise { background: rgba(107,114,128,0.18); color: var(--noise); }
+
+  /* SVG STYLES */
+  .link {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 1.2px;
+    transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+  }
+  .link.highlighted { stroke: var(--highlight); stroke-width: 2px; }
+  .link.dimmed { opacity: 0.15; }
+
+  .node circle {
+    transition: r 0.3s, fill 0.3s, stroke 0.3s;
+    cursor: pointer;
+  }
+  .node.internal circle {
+    fill: var(--bg2);
+    stroke: var(--internal);
+    stroke-width: 1.5px;
+  }
+  .node.leaf circle {
+    fill: var(--leaf);
+    stroke: var(--bg);
+    stroke-width: 1.5px;
+  }
+  .node.collapsed circle {
+    fill: var(--internal);
+    stroke: var(--accent2);
+    stroke-width: 2px;
+  }
+  .node.highlighted circle { stroke: var(--highlight) !important; stroke-width: 3px !important; }
+  .node.dimmed { opacity: 0.2; }
+
+  .node text {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    fill: var(--text2);
+    font-size: 10px;
+    transition: fill 0.3s, opacity 0.3s;
+    pointer-events: none;
+    dominant-baseline: central;
+  }
+  .node.leaf text { fill: var(--leaf); font-size: 10px; }
+  .node.highlighted text { fill: var(--highlight) !important; }
+  .node.dimmed text { opacity: 0.2; }
+
+  /* LEGEND */
+  .legend {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    color: var(--text2);
+    display: none;
+  }
+  .legend.show { display: block; }
+  .legend-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text3);
+    margin-bottom: 8px;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px; margin-top: 5px;
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-dot.internal { background: transparent; border: 2px solid var(--internal); }
+  .legend-dot.leaf { background: var(--leaf); }
+  .legend-dot.collapsed { background: var(--internal); border: 2px solid var(--accent2); }
+
+  /* MINIMAP */
+  #minimap {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(22,27,39,0.92);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    display: none;
+  }
+  #minimap.show { display: block; }
+  #minimap-canvas { display: block; border-radius: 5px; }
+  #minimap-viewport {
+    position: absolute;
+    border: 1.5px solid var(--accent);
+    border-radius: 2px;
+    pointer-events: none;
+    background: rgba(79,142,247,0.08);
+  }
+
+  /* SIDE PANEL */
+  #side-panel {
+    position: absolute;
+    top: 0; right: 0;
+    width: var(--panel-w);
+    height: 100%;
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    display: none;
+    flex-direction: column;
+    z-index: 200;
+    overflow: hidden;
+  }
+  #side-panel.open { display: flex; }
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-title { font-size: 12px; font-weight: 600; color: var(--text); letter-spacing: 0.04em; text-transform: uppercase; }
+  .panel-close {
+    background: none; border: none; color: var(--text3); cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 3px;
+    transition: color 0.15s;
+  }
+  .panel-close:hover { color: var(--text); }
+  .panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .panel-section { margin-bottom: 16px; }
+  .panel-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 6px; }
+  .panel-value { font-size: 13px; color: var(--text); font-weight: 500; }
+  .panel-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  }
+  .badge-cluster { background: rgba(52,211,153,0.15); color: var(--leaf); }
+  .badge-noise { background: rgba(107,114,128,0.2); color: var(--noise); }
+  .panel-size-bar {
+    height: 6px; border-radius: 3px; background: var(--bg3);
+    margin-top: 6px; overflow: hidden;
+  }
+  .panel-size-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.4s ease;
+  }
+  .comment-list { display: flex; flex-direction: column; gap: 6px; }
+  .comment-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent2);
+    border-radius: 4px;
+    padding: 7px 10px;
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .comment-item.noise-comment { border-left-color: var(--noise); }
+  .node text.sublabel {
+    font-size: 9px;
+    fill: var(--text3);
+    dominant-baseline: auto;
+  }
+  .node.leaf text.sublabel { fill: var(--text3); font-size: 9px; }
+  .node.noise circle { fill: var(--noise) !important; stroke: var(--bg) !important; }
+  .node.noise text { fill: var(--noise) !important; }
+  .slider-wrap #size-slider { width: 70px; accent-color: var(--accent2); }
+  #tooltip { max-width: 300px; }
+  .tt-comments { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .tt-comment-item {
+    font-size: 10px; color: var(--text2); line-height: 1.45;
+    margin-top: 4px; padding-left: 8px;
+    border-left: 2px solid var(--accent2);
+    word-break: break-word;
+  }
+  .tt-size-bar { height: 4px; border-radius: 2px; background: var(--bg3); margin-top: 5px; }
+  .tt-size-fill { height: 100%; border-radius: 2px; background: var(--accent); }
+  .legend-dot.noise { background: var(--noise); }
+  .upload-hint {
+    font-size: 11px; color: var(--text3); text-align: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 16px; max-width: 520px; width: 90%;
+    line-height: 1.6;
+  }
+  .upload-hint code { background: var(--bg2); padding: 1px 5px; border-radius: 3px; color: var(--accent2); }
+  #agg-badge {
+    font-size: 10px; padding: 3px 9px; border-radius: 4px;
+    background: rgba(52,211,153,0.12); color: var(--leaf);
+    border: 1px solid rgba(52,211,153,0.3);
+    display: none; white-space: nowrap;
+  }
+  #agg-badge.show { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* MULTI-FILE UPLOAD PANEL */
+  .upload-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    max-width: 580px;
+    width: 90%;
+  }
+  .upload-panel-title {
+    font-size: 15px; font-weight: 600; color: var(--text);
+    margin-bottom: 6px; letter-spacing: 0.02em;
+  }
+  .upload-panel-sub {
+    font-size: 11px; color: var(--text3); margin-bottom: 20px; line-height: 1.6;
+  }
+  .method-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+  }
+  .method-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  #methodSelector {
+    font-family: inherit;
+    font-size: 12px;
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+    flex: 1;
+  }
+  #methodSelector:focus { border-color: var(--accent); }
+  .file-rows { display: flex; flex-direction: column; gap: 10px; }
+  .file-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px;
+    transition: border-color 0.2s;
+  }
+  .file-row.loaded { border-color: var(--leaf); }
+  .file-row.optional { border-style: dashed; }
+  .file-row-icon { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
+  .file-row-info { flex: 1; min-width: 0; }
+  .file-row-label { font-size: 11px; color: var(--text2); font-weight: 500; }
+  .file-row-label .badge-req {
+    display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    background: rgba(79,142,247,0.15); color: var(--accent);
+    margin-left: 5px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .file-row-label .badge-opt {
+    display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    background: rgba(100,116,139,0.2); color: var(--text3);
+    margin-left: 5px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .file-row-name {
+    font-size: 10px; color: var(--text3); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+  }
+  .file-row-name.done { color: var(--leaf); }
+  .file-pick-btn {
+    font-family: inherit; font-size: 10px; font-weight: 500;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg2); color: var(--text2);
+    transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+  }
+  .file-pick-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .file-pick-btn.done { border-color: var(--leaf); color: var(--leaf); }
+  .upload-actions { margin-top: 20px; display: flex; align-items: center; gap: 10px; }
+  .btn-render {
+    font-family: inherit; font-size: 12px; font-weight: 600;
+    padding: 8px 20px; border-radius: 5px; cursor: pointer;
+    border: 1px solid var(--accent); background: rgba(79,142,247,0.12); color: var(--accent);
+    transition: all 0.15s; letter-spacing: 0.04em;
+  }
+  .btn-render:hover { background: rgba(79,142,247,0.22); }
+  .btn-render:disabled {
+    opacity: 0.35; cursor: not-allowed;
+    border-color: var(--border); color: var(--text3); background: transparent;
+  }
+  .upload-status {
+    font-size: 11px; color: var(--text3);
+  }
+  .upload-status.ready { color: var(--leaf); }
+  .upload-status.warn { color: var(--highlight); }
+
+  /* METHOD BADGE in header */
+  #method-badge {
+    font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 600;
+    display: none; white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  #method-badge.show { display: inline-block; }
+  #method-badge.coseno { background: rgba(79,142,247,0.15); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+  #method-badge.jaccard { background: rgba(124,92,252,0.15); color: var(--accent2); border: 1px solid rgba(124,92,252,0.3); }
+
+  /* UPLOAD ZONE — keep base styles, hide old hint */
+  .upload-card { display: none !important; }
+  .upload-hint { display: none !important; }
+
+  /* ERROR */
+  #error-msg {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(248,113,113,0.15);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 9999;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Dendro<span>gram</span></div>
+  <div class="sep"></div>
+  <div class="controls" id="main-controls" style="display:none">
+    <button class="btn" id="btn-expand">▶ Expandir todo</button>
+    <button class="btn" id="btn-collapse">◀ Colapsar todo</button>
+    <div class="sep"></div>
+    <div class="slider-wrap">
+      <span>Prof.</span>
+      <input type="range" id="depth-slider" min="1" max="10" value="2">
+      <span id="depth-label">2</span>
+    </div>
+    <div class="sep"></div>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="search" placeholder="Buscar nodo...">
+    </div>
+    <div class="sep"></div>
+    <button class="btn" id="btn-reset">↺ Resetear vista</button>
+    <div class="sep"></div>
+    <div class="slider-wrap">
+      <span>Tam. min.</span>
+      <input type="range" id="size-slider" min="0" max="100" value="0">
+      <span id="size-label" style="color:var(--accent2);min-width:16px;text-align:center">0</span>
+    </div>
+    <span id="agg-badge">◉ Agregados</span>
+    <span id="method-badge"></span>
+    <button class="btn" id="btn-new" style="margin-left:auto">↺ Cambiar sesión</button>
+  </div>
+  <div id="upload-btn-wrap" style="display:none"><!-- legacy hidden --></div>
+</header>
+
+<div id="upload-zone">
+  <div class="upload-panel">
+    <div class="upload-panel-title">Nueva sesión de análisis</div>
+    <div class="upload-panel-sub">Selecciona el método y carga los archivos correspondientes. Los archivos requeridos deben cargarse antes de renderizar.</div>
+
+    <div class="method-row">
+      <span class="method-label">Método:</span>
+      <select id="methodSelector">
+        <option value="coseno">Coseno</option>
+        <option value="jaccard">Jaccard</option>
+      </select>
+    </div>
+
+    <div class="file-rows">
+      <!-- Dendrograma -->
+      <div class="file-row" id="row-dendro">
+        <span class="file-row-icon">⌂</span>
+        <div class="file-row-info">
+          <div class="file-row-label">Dendrograma <span class="badge-req">requerido</span></div>
+          <div class="file-row-name" id="name-dendro">Sin archivo</div>
+        </div>
+        <button class="file-pick-btn" id="btn-pick-dendro">Seleccionar</button>
+        <input type="file" id="dendrogramInput" accept=".json" style="display:none">
+      </div>
+      <!-- Cluster Agregados -->
+      <div class="file-row" id="row-agg">
+        <span class="file-row-icon">◈</span>
+        <div class="file-row-info">
+          <div class="file-row-label">Clusters agregados <span class="badge-req">requerido</span></div>
+          <div class="file-row-name" id="name-agg">Sin archivo</div>
+        </div>
+        <button class="file-pick-btn" id="btn-pick-agg">Seleccionar</button>
+        <input type="file" id="aggregatesInput" accept=".json" style="display:none">
+      </div>
+      <!-- Clusters (opcional) -->
+      <div class="file-row optional" id="row-clusters">
+        <span class="file-row-icon">◉</span>
+        <div class="file-row-info">
+          <div class="file-row-label">Clusters detalle <span class="badge-opt">opcional</span></div>
+          <div class="file-row-name" id="name-clusters">Sin archivo — carga bajo demanda</div>
+        </div>
+        <button class="file-pick-btn" id="btn-pick-clusters">Seleccionar</button>
+        <input type="file" id="clustersInput" accept=".json" style="display:none">
+      </div>
+    </div>
+
+    <div class="upload-actions">
+      <button class="btn-render" id="btn-render" disabled>Visualizar</button>
+      <span class="upload-status" id="upload-status">Carga los archivos requeridos</span>
+    </div>
+  </div>
+</div>
+
+<div id="viz-container">
+  <svg id="svg-container"></svg>
+  <div class="legend" id="legend">
+    <div class="legend-title">Leyenda</div>
+    <div class="legend-item"><div class="legend-dot internal"></div><span>Nodo interno</span></div>
+    <div class="legend-item"><div class="legend-dot leaf"></div><span>Cluster (hoja)</span></div>
+    <div class="legend-item"><div class="legend-dot collapsed"></div><span>Colapsado</span></div>
+    <div class="legend-item"><div class="legend-dot noise"></div><span>Ruido (id=-1)</span></div>
+  </div>
+  <div id="minimap">
+    <canvas id="minimap-canvas" width="160" height="100"></canvas>
+    <div id="minimap-viewport"></div>
+  </div>
+  <div id="side-panel">
+    <div class="panel-header">
+      <span class="panel-title">Detalle del cluster</span>
+      <button class="panel-close" id="panel-close">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+  </div>
+</div>
+
+<div id="stats-bar">
+  <div class="stat"><div class="stat-dot" style="background:var(--internal)"></div><span>Nodos internos:</span><span class="stat-val" id="st-internal">0</span></div>
+  <div class="stat"><div class="stat-dot" style="background:var(--leaf)"></div><span>Clusters (hojas):</span><span class="stat-val" id="st-leaves">0</span></div>
+  <div class="stat"><span>Profundidad máx:</span><span class="stat-val" id="st-depth">0</span></div>
+  <div class="stat"><span>Nodos visibles:</span><span class="stat-val" id="st-visible">0</span></div>
+  <div class="stat" style="margin-left:auto; cursor:pointer" id="toggle-minimap"><span style="color:var(--text3)">▦ Minimapa</span></div>
+</div>
+
+<div id="tooltip"><div class="tooltip-inner" id="tooltip-inner"></div></div>
+<div id="error-msg"></div>
+
+<script>
+(function() {
+  const margin = { top: 20, right: 180, bottom: 20, left: 60 };
+  let root, svg, gMain, gLinks, gNodes, zoom, treeLayout;
+  let width = 0, height = 0;
+  let maxDepth = 1;
+  let searchHighlight = null;
+  let minimapEnabled = false;
+  let clusterAggregates = {};
+  let maxClusterSize = 1;
+  let minSizeFilter = 0;
+  let colorScale = null;
+  let dendrogramData = null;
+
+  const tooltip = document.getElementById('tooltip');
+  const ttInner = document.getElementById('tooltip-inner');
+  const errorEl = document.getElementById('error-msg');
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+    setTimeout(() => { errorEl.style.display = 'none'; }, 4000);
+  }
+
+  // ─── MANEJADORES DE ARCHIVOS CORREGIDOS ──
+  
+  // Cargar dendrograma
+  document.getElementById('dendrogramInput').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          dendrogramData = data;
+          updateFileStatus('dendro', f.name);
+        } catch (err) {
+          showError('JSON inválido en dendrograma: ' + err.message);
+        }
+      };
+      reader.readAsText(f);
+    }
+  });
+
+  // Cargar agregados
+  document.getElementById('aggregatesInput').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          clusterAggregates = data;
+          maxClusterSize = 1;
+          Object.values(data).forEach(v => {
+            if (v.size && v.size > maxClusterSize) maxClusterSize = v.size;
+          });
+          updateFileStatus('agg', f.name);
+        } catch (err) {
+          showError('JSON inválido en agregados: ' + err.message);
+        }
+      };
+      reader.readAsText(f);
+    }
+  });
+
+  // Cargar clusters detalle (opcional)
+  document.getElementById('clustersInput').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) {
+      updateFileStatus('clusters', f.name);
+    }
+  });
+
+  // Función auxiliar para actualizar UI
+  function updateFileStatus(type, filename) {
+    const nameEl = document.getElementById(`name-${type}`);
+    const rowEl = document.getElementById(`row-${type}`);
+    const btnEl = document.getElementById(`btn-pick-${type}`);
+    if (nameEl) {
+      nameEl.textContent = filename;
+      nameEl.classList.add('done');
+    }
+    if (rowEl) rowEl.classList.add('loaded');
+    if (btnEl) btnEl.classList.add('done');
+    
+    const hasDendro = document.getElementById('name-dendro').textContent !== 'Sin archivo';
+    const hasAgg = document.getElementById('name-agg').textContent !== 'Sin archivo';
+    const renderBtn = document.getElementById('btn-render');
+    if (renderBtn && hasDendro && hasAgg) {
+      renderBtn.disabled = false;
+      document.getElementById('upload-status').textContent = '✓ Listo para visualizar';
+      document.getElementById('upload-status').classList.add('ready');
+    }
+  }
+
+  // Botón Visualizar
+  document.getElementById('btn-render').addEventListener('click', () => {
+    if (dendrogramData && clusterAggregates && Object.keys(clusterAggregates).length > 0) {
+      initViz(dendrogramData);
+    } else {
+      showError('Faltan archivos requeridos');
+    }
+  });
+
+  // Botones de selección de archivos
+  document.getElementById('btn-pick-dendro').onclick = () => document.getElementById('dendrogramInput').click();
+  document.getElementById('btn-pick-agg').onclick = () => document.getElementById('aggregatesInput').click();
+  document.getElementById('btn-pick-clusters').onclick = () => document.getElementById('clustersInput').click();
+
+  // Botón nueva sesión
+  document.getElementById('btn-new').addEventListener('click', () => {
+    document.getElementById('viz-container').style.display = 'none';
+    document.getElementById('upload-zone').style.display = '';
+    document.getElementById('main-controls').style.display = 'none';
+    document.getElementById('stats-bar').style.display = 'none';
+    document.getElementById('legend').classList.remove('show');
+    document.getElementById('minimap').classList.remove('show');
+    minimapEnabled = false;
+    root = null;
+    clusterAggregates = {};
+    dendrogramData = null;
+    maxClusterSize = 1;
+    minSizeFilter = 0;
+    document.getElementById('agg-badge').classList.remove('show');
+    document.getElementById('side-panel').classList.remove('open');
+    
+    // Reset file UI
+    const fileNames = ['dendro', 'agg', 'clusters'];
+    fileNames.forEach(type => {
+      const nameEl = document.getElementById(`name-${type}`);
+      const rowEl = document.getElementById(`row-${type}`);
+      const btnEl = document.getElementById(`btn-pick-${type}`);
+      if (nameEl) {
+        nameEl.textContent = type === 'clusters' ? 'Sin archivo — carga bajo demanda' : 'Sin archivo';
+        nameEl.classList.remove('done');
+      }
+      if (rowEl) rowEl.classList.remove('loaded');
+      if (btnEl) btnEl.classList.remove('done');
+    });
+    
+    const renderBtn = document.getElementById('btn-render');
+    if (renderBtn) {
+      renderBtn.disabled = true;
+      document.getElementById('upload-status').textContent = 'Carga los archivos requeridos';
+      document.getElementById('upload-status').classList.remove('ready');
+    }
+  });
+
+  // ─── INIT VIZ ───────────────────────────────────────────
+  function initViz(data) {
+    document.getElementById('upload-zone').style.display = 'none';
+    document.getElementById('viz-container').style.display = 'block';
+    document.getElementById('main-controls').style.display = 'flex';
+    document.getElementById('stats-bar').style.display = 'flex';
+    document.getElementById('legend').classList.add('show');
+
+    const container = document.getElementById('viz-container');
+    width = container.clientWidth;
+    height = container.clientHeight;
+
+    d3.select('#svg-container').selectAll('*').remove();
+
+    svg = d3.select('#svg-container')
+      .attr('width', width)
+      .attr('height', height);
+
+    // Defs
+    const defs = svg.append('defs');
+    defs.append('filter').attr('id', 'glow')
+      .append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur');
+    
+    zoom = d3.zoom()
+      .scaleExtent([0.05, 8])
+      .on('zoom', e => {
+        gMain.attr('transform', e.transform);
+        updateMinimap(e.transform);
+      });
+    svg.call(zoom);
+
+    gMain = svg.append('g').attr('class', 'g-main');
+    gLinks = gMain.append('g').attr('class', 'links');
+    gNodes = gMain.append('g').attr('class', 'nodes');
+
+    root = d3.hierarchy(data);
+
+    // Enrich with aggregates if already loaded
+    if (Object.keys(clusterAggregates).length > 0) enrichNodes(root, clusterAggregates);
+
+    // Build color scale
+    colorScale = d3.scaleSequential()
+      .domain([0, maxClusterSize])
+      .interpolator(d3.interpolate('#3b82f6', '#34d399'));
+
+    // Configure size slider max
+    const sizeSlider = document.getElementById('size-slider');
+    sizeSlider.max = maxClusterSize;
+    sizeSlider.value = 0;
+    document.getElementById('size-label').textContent = 0;
+    sizeSlider.oninput = function() {
+      minSizeFilter = parseInt(this.value) || 0;
+      document.getElementById('size-label').textContent = minSizeFilter;
+      update(root);
+    };
+
+    // Show badge
+    const n = Object.keys(clusterAggregates).length;
+    document.getElementById('agg-badge').classList.add('show');
+    document.getElementById('agg-badge').innerHTML = `◉ ${n} clusters`;
+
+    // Compute stats
+    let leaves = 0, internals = 0;
+    root.each(d => {
+      if (!d.data.children || d.data.children.length === 0) leaves++;
+      else internals++;
+    });
+    maxDepth = root.height;
+
+    document.getElementById('st-internal').textContent = internals;
+    document.getElementById('st-leaves').textContent = leaves;
+    document.getElementById('st-depth').textContent = maxDepth;
+
+    // Depth slider
+    const slider = document.getElementById('depth-slider');
+    slider.max = maxDepth;
+    slider.value = Math.min(2, maxDepth);
+    document.getElementById('depth-label').textContent = slider.value;
+
+    // Collapse to initial depth
+    collapseToDepth(root, parseInt(slider.value));
+
+    treeLayout = d3.cluster();
+    update(root, true);
+
+    // Controls
+    document.getElementById('btn-expand').onclick = () => { expandAll(root); update(root); };
+    document.getElementById('btn-collapse').onclick = () => { collapseAll(root); update(root); };
+    document.getElementById('btn-reset').onclick = () => resetView();
+    slider.oninput = function() {
+      document.getElementById('depth-label').textContent = this.value;
+      collapseToDepth(root, parseInt(this.value));
+      update(root);
+    };
+    document.getElementById('search').oninput = function() {
+      searchHighlight = this.value.trim().toLowerCase();
+      applySearch();
+    };
+    document.getElementById('panel-close').onclick = () => {
+      document.getElementById('side-panel').classList.remove('open');
+    };
+    document.getElementById('toggle-minimap').onclick = () => {
+      minimapEnabled = !minimapEnabled;
+      document.getElementById('minimap').classList.toggle('show', minimapEnabled);
+      if (minimapEnabled) drawMinimap();
+    };
+
+    resetView(true);
+  }
+
+  // ─── ENRICH NODES ───────────────────────────────────────
+  function enrichNodes(node, aggregates) {
+    node.each(d => {
+      if (d.data.cluster_id !== undefined) {
+        const key = String(d.data.cluster_id);
+        d.data.extra = aggregates[key] || aggregates[d.data.cluster_id] || null;
+      }
+    });
+  }
+
+  // ─── CREATE TOOLTIP CONTENT ─────────────────────────────
+  function createTooltipContent(d) {
+    const data = d.data;
+    const isLeafNode = isLeaf(d);
+    const extra = data.extra;
+    const isNoise = data.cluster_id === -1 || data.cluster_id === '-1';
+    const typeClass = isLeafNode ? 'leaf' : 'internal';
+    const typeName = isNoise ? '⬡ ruido' : isLeafNode ? '◉ cluster' : '◈ interno';
+    const typeCss = isNoise ? 'tt-noise' : `tt-${typeClass}`;
+
+    let html = `<div class="tt-name">${data.name || '(sin nombre)'}</div>`;
+
+    if (data.cluster_id !== undefined)
+      html += `<div class="tt-row"><span>cluster_id</span><span>${data.cluster_id}</span></div>`;
+    if (data.distance !== undefined)
+      html += `<div class="tt-row"><span>distance</span><span>${(+data.distance).toFixed(4)}</span></div>`;
+    html += `<div class="tt-row"><span>profundidad</span><span>${d.depth}</span></div>`;
+
+    const childCount = (d.children || d._children || []).length;
+    if (childCount > 0)
+      html += `<div class="tt-row"><span>hijos</span><span>${childCount}</span></div>`;
+
+    // Enriched data from cluster_agregados
+    if (extra) {
+      if (extra.size !== undefined) {
+        const pct = Math.round((extra.size / maxClusterSize) * 100);
+        html += `<div class="tt-row"><span>tamaño</span><span>${extra.size.toLocaleString()}</span></div>`;
+        html += `<div class="tt-size-bar"><div class="tt-size-fill" style="width:${pct}%"></div></div>`;
+      }
+      if (extra.sample_comments && extra.sample_comments.length > 0) {
+        html += `<div class="tt-comments">`;
+        const comments = extra.sample_comments.slice(0, 4);
+        comments.forEach(c => {
+          const truncated = c.length > 80 ? c.slice(0, 79) + '…' : c;
+          html += `<div class="tt-comment-item">${escapeHtml(truncated)}</div>`;
+        });
+        if (extra.sample_comments.length > 4)
+          html += `<div style="font-size:10px;color:var(--text3);margin-top:4px">+${extra.sample_comments.length - 4} más — click para ver todo</div>`;
+        html += `</div>`;
+      }
+    }
+
+    html += `<div class="tt-type ${typeCss}">${typeName}</div>`;
+    return html;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ─── COLLAPSE LOGIC ─────────────────────────────────────
+  function collapseToDepth(node, depth) {
+    if (node.children) {
+      if (node.depth >= depth) {
+        node._children = node.children;
+        node._children.forEach(c => collapseAll(c));
+        node.children = null;
+      } else {
+        node.children.forEach(c => collapseToDepth(c, depth));
+      }
+    } else if (node._children) {
+      if (node.depth < depth) {
+        node.children = node._children;
+        node._children = null;
+        node.children.forEach(c => collapseToDepth(c, depth));
+      }
+    }
+  }
+
+  function collapseAll(node) {
+    if (node.children) {
+      node._children = node.children;
+      node._children.forEach(collapseAll);
+      node.children = null;
+    }
+  }
+
+  function expandAll(node) {
+    if (node._children) {
+      node.children = node._children;
+      node._children = null;
+    }
+    if (node.children) node.children.forEach(expandAll);
+  }
+
+  // ─── UPDATE ─────────────────────────────────────────────
+  function update(source, initial = false) {
+    // Apply size filter: hide leaf nodes below minSizeFilter
+    root.each(d => {
+      if (isLeaf(d) && minSizeFilter > 0 && d.data.extra && d.data.extra.size !== undefined) {
+        d._sizeHidden = d.data.extra.size < minSizeFilter;
+      } else {
+        d._sizeHidden = false;
+      }
+    });
+
+    const visibleNodes = root.descendants().filter(d => !d._sizeHidden);
+    const visibleCount = visibleNodes.length;
+    document.getElementById('st-visible').textContent = visibleCount;
+
+    const nodeHeight = Math.max(14, Math.min(26, 800 / visibleCount));
+    const totalH = Math.max(height - margin.top - margin.bottom, visibleCount * nodeHeight);
+    const innerW = width - margin.left - margin.right;
+
+    treeLayout.size([totalH, innerW]);
+    treeLayout(root);
+
+    const duration = initial ? 0 : 350;
+    const transition = svg.transition().duration(duration).ease(d3.easeCubicOut);
+
+    // LINKS
+    const link = gLinks.selectAll('.link').data(root.links(), d => d.target.data.name + d.target.depth);
+
+    const linkEnter = link.enter().append('path')
+      .attr('class', 'link')
+      .attr('d', d => {
+        const o = { x: source.x0 || source.x, y: source.y0 || source.y };
+        return diagonal({ source: o, target: o });
+      });
+
+    link.merge(linkEnter)
+      .transition(transition)
+      .attr('d', diagonal);
+
+    link.exit()
+      .transition(transition)
+      .attr('d', d => {
+        const o = { x: source.x, y: source.y };
+        return diagonal({ source: o, target: o });
+      })
+      .remove();
+
+    // NODES
+    const node = gNodes.selectAll('.node').data(root.descendants().filter(d => !d._sizeHidden), d => d.data.name + d.depth);
+
+    const nodeEnter = node.enter().append('g')
+      .attr('class', d => nodeClass(d))
+      .attr('transform', d => `translate(${source.y0 || source.y},${source.x0 || source.x})`)
+      .attr('cursor', 'pointer')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        if (isLeaf(d)) {
+          openSidePanel(d);
+        } else {
+          toggle(d);
+          update(d);
+        }
+      })
+      .on('mouseover', showTooltip)
+      .on('mousemove', moveTooltip)
+      .on('mouseout', hideTooltip)
+      .on('contextmenu', (event, d) => {
+        event.preventDefault();
+        highlightPath(d);
+      });
+
+    nodeEnter.append('circle').attr('r', 0);
+    nodeEnter.append('text').attr('class', 'mainlabel');
+    nodeEnter.append('text').attr('class', 'sublabel');
+
+    const nodeMerge = node.merge(nodeEnter);
+
+    nodeMerge.transition(transition)
+      .attr('class', d => nodeClass(d))
+      .attr('transform', d => `translate(${d.y},${d.x})`);
+
+    nodeMerge.select('circle')
+      .transition(transition)
+      .attr('r', d => leafRadius(d))
+      .style('fill', d => leafColor(d))
+      .style('stroke', d => {
+        if (!isLeaf(d)) return null;
+        if (d.data.cluster_id === -1 || d.data.cluster_id === '-1') return null;
+        return colorScale && d.data.extra ? d3.color(leafColor(d)).darker(0.5) : null;
+      });
+
+    nodeMerge.select('text.mainlabel')
+      .attr('dy', d => (isLeaf(d) && d.data.extra && d.data.extra.sample_comments) ? '-0.3em' : '0.32em')
+      .attr('x', d => isLeaf(d) ? 10 : -10)
+      .attr('text-anchor', d => isLeaf(d) ? 'start' : 'end')
+      .text(d => {
+        const name = d.data.name || '';
+        const maxLen = isLeaf(d) ? 22 : 18;
+        return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name;
+      });
+
+    nodeMerge.select('text.sublabel')
+      .attr('x', d => isLeaf(d) ? 10 : -10)
+      .attr('dy', '0.85em')
+      .attr('text-anchor', d => isLeaf(d) ? 'start' : 'end')
+      .text(d => {
+        if (!isLeaf(d)) return '';
+        const extra = d.data.extra;
+        if (!extra) return '';
+        const comments = extra.sample_comments;
+        if (comments && comments.length > 0) {
+          const c = comments[0];
+          return c.length > 38 ? c.slice(0, 37) + '…' : c;
+        }
+        return '';
+      });
+
+    node.exit()
+      .transition(transition)
+      .attr('transform', () => `translate(${source.y},${source.x})`)
+      .select('circle').attr('r', 0);
+    node.exit().transition(transition).remove();
+
+    root.each(d => { d.x0 = d.x; d.y0 = d.y; });
+
+    applySearch();
+    if (minimapEnabled) drawMinimap();
+  }
+
+  // ─── LEAF SIZE & COLOR ──────────────────────────────────
+  function leafRadius(d) {
+    if (!isLeaf(d)) return d._children ? 6 : 5;
+    const extra = d.data.extra;
+    if (!extra || extra.size === undefined) return 4.5;
+    if (d.data.cluster_id === -1 || d.data.cluster_id === '-1') return 3.5;
+    const r = 3 + Math.log1p(extra.size) * (8 / Math.log1p(maxClusterSize));
+    return Math.min(r, 14);
+  }
+
+  function leafColor(d) {
+    if (!isLeaf(d)) return null;
+    if (d.data.cluster_id === -1 || d.data.cluster_id === '-1') return '#6b7280';
+    if (colorScale && d.data.extra && d.data.extra.size !== undefined)
+      return colorScale(d.data.extra.size);
+    return null;
+  }
+
+  // ─── SIDE PANEL ─────────────────────────────────────────
+  function openSidePanel(d) {
+    highlightPath(d);
+    const data = d.data;
+    const extra = data.extra;
+    const isNoise = data.cluster_id === -1 || data.cluster_id === '-1';
+    const panel = document.getElementById('side-panel');
+    const body = document.getElementById('panel-body');
+
+    let html = '';
+
+    const badgeCls = isNoise ? 'badge-noise' : 'badge-cluster';
+    const badgeTxt = isNoise ? '⬡ Ruido' : `◉ Cluster ${data.cluster_id}`;
+    html += `<div class="panel-section">
+      <span class="panel-badge ${badgeCls}">${badgeTxt}</span>
+    </div>`;
+
+    html += `<div class="panel-section">
+      <div class="panel-label">Nombre</div>
+      <div class="panel-value" style="word-break:break-all">${escapeHtml(data.name || '(sin nombre)')}</div>
+    </div>`;
+
+    if (data.distance !== undefined) {
+      html += `<div class="panel-section">
+        <div class="panel-label">Distancia</div>
+        <div class="panel-value">${(+data.distance).toFixed(6)}</div>
+      </div>`;
+    }
+
+    if (extra && extra.size !== undefined) {
+      const pct = Math.round((extra.size / maxClusterSize) * 100);
+      html += `<div class="panel-section">
+        <div class="panel-label">Tamaño</div>
+        <div class="panel-value">${extra.size.toLocaleString()} elementos</div>
+        <div class="panel-size-bar"><div class="panel-size-fill" style="width:${pct}%"></div></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">${pct}% del cluster más grande</div>
+      </div>`;
+    } else if (!extra) {
+      html += `<div class="panel-section" style="color:var(--text3);font-size:11px">
+        Sin datos de cluster_agregados.json
+      </div>`;
+    }
+
+    if (extra && extra.sample_comments && extra.sample_comments.length > 0) {
+      const comments = extra.sample_comments.slice(0, 10);
+      const noiseCls = isNoise ? ' noise-comment' : '';
+      html += `<div class="panel-section">
+        <div class="panel-label">Comentarios representativos (${comments.length}/${extra.sample_comments.length})</div>
+        <div class="comment-list">`;
+      comments.forEach(c => {
+        html += `<div class="comment-item${noiseCls}">${escapeHtml(c)}</div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    body.innerHTML = html;
+    panel.classList.add('open');
+  }
+
+  function nodeClass(d) {
+    let cls = 'node';
+    if (isLeaf(d)) {
+      cls += ' leaf';
+      if (d.data.cluster_id === -1 || d.data.cluster_id === '-1') cls += ' noise';
+    } else if (d._children) cls += ' collapsed';
+    else cls += ' internal';
+    return cls;
+  }
+
+  function isLeaf(d) {
+    return !d.children && !d._children;
+  }
+
+  function toggle(d) {
+    if (d.children) {
+      d._children = d.children;
+      d.children = null;
+    } else if (d._children) {
+      d.children = d._children;
+      d._children = null;
+    }
+  }
+
+  function diagonal(d) {
+    return d3.linkHorizontal()
+      .x(n => n.y).y(n => n.x)(d);
+  }
+
+  // ─── TOOLTIP ────────────────────────────────────────────
+  function showTooltip(event, d) {
+    ttInner.innerHTML = createTooltipContent(d);
+    tooltip.style.opacity = 1;
+    moveTooltip(event);
+  }
+
+  function moveTooltip(event) {
+    let x = event.clientX + 14;
+    let y = event.clientY - 10;
+    if (x + 280 > window.innerWidth) x = event.clientX - 280;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+
+  function hideTooltip() {
+    tooltip.style.opacity = 0;
+  }
+
+  // ─── SEARCH ─────────────────────────────────────────────
+  function applySearch() {
+    const q = searchHighlight;
+    if (!q) {
+      gNodes.selectAll('.node').classed('highlighted', false).classed('dimmed', false);
+      gLinks.selectAll('.link').classed('highlighted', false).classed('dimmed', false);
+      return;
+    }
+    const matchingNodes = new Set();
+    gNodes.selectAll('.node').each(function(d) {
+      const name = (d.data.name || '').toLowerCase();
+      const cid = d.data.cluster_id !== undefined ? String(d.data.cluster_id) : '';
+      const comments = (d.data.extra && d.data.extra.sample_comments) || [];
+      const inComments = comments.some(c => c.toLowerCase().includes(q));
+      if (name.includes(q) || cid.includes(q) || inComments) matchingNodes.add(d);
+    });
+
+    const highlighted = new Set();
+    matchingNodes.forEach(d => {
+      highlighted.add(d);
+      let cur = d.parent;
+      while (cur) { highlighted.add(cur); cur = cur.parent; }
+    });
+
+    gNodes.selectAll('.node')
+      .classed('highlighted', d => highlighted.has(d))
+      .classed('dimmed', d => q && !highlighted.has(d));
+
+    gLinks.selectAll('.link')
+      .classed('highlighted', d => highlighted.has(d.target))
+      .classed('dimmed', d => q && !highlighted.has(d.target));
+  }
+
+  // ─── HIGHLIGHT PATH ─────────────────────────────────────
+  function highlightPath(d) {
+    const pathNodes = new Set();
+    let cur = d;
+    while (cur) { pathNodes.add(cur); cur = cur.parent; }
+
+    gNodes.selectAll('.node')
+      .classed('highlighted', n => pathNodes.has(n))
+      .classed('dimmed', n => !pathNodes.has(n));
+    gLinks.selectAll('.link')
+      .classed('highlighted', l => pathNodes.has(l.target))
+      .classed('dimmed', l => !pathNodes.has(l.target));
+
+    svg.on('click.reset', () => {
+      gNodes.selectAll('.node').classed('highlighted', false).classed('dimmed', false);
+      gLinks.selectAll('.link').classed('highlighted', false).classed('dimmed', false);
+      svg.on('click.reset', null);
+    });
+  }
+
+  // ─── RESET VIEW ─────────────────────────────────────────
+  function resetView(initial = false) {
+    if (!root) return;
+    const nodes = root.descendants();
+    if (!nodes.length) return;
+
+    const minX = d3.min(nodes, d => d.x);
+    const maxX = d3.max(nodes, d => d.x);
+    const minY = d3.min(nodes, d => d.y);
+    const maxX2 = d3.max(nodes, d => d.y);
+
+    const treeW = (maxX2 - minY) + margin.left + margin.right + 200;
+    const treeH = (maxX - minX) + margin.top + margin.bottom;
+
+    const scaleX = width / treeW;
+    const scaleY = height / treeH;
+    const scale = Math.min(scaleX, scaleY, 1.2) * 0.9;
+
+    const tx = margin.left - minY * scale + (width - treeW * scale) / 2;
+    const ty = margin.top - minX * scale + (height - treeH * scale) / 2;
+
+    svg.transition().duration(initial ? 0 : 600).ease(d3.easeCubicOut)
+      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+  }
+
+  // ─── MINIMAP ────────────────────────────────────────────
+  function drawMinimap() {
+    if (!minimapEnabled || !root) return;
+    const canvas = document.getElementById('minimap-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const nodes = root.descendants();
+    const links = root.links();
+    if (!nodes.length) return;
+
+    const minX = d3.min(nodes, d => d.y);
+    const maxX = d3.max(nodes, d => d.y);
+    const minY = d3.min(nodes, d => d.x);
+    const maxY = d3.max(nodes, d => d.x);
+
+    const scaleX = (W - 10) / (maxX - minX || 1);
+    const scaleY = (H - 10) / (maxY - minY || 1);
+    const scale = Math.min(scaleX, scaleY);
+    const offX = 5 + ((W - 10) - (maxX - minX) * scale) / 2;
+    const offY = 5 + ((H - 10) - (maxY - minY) * scale) / 2;
+
+    const mx = d => (d.y - minX) * scale + offX;
+    const my = d => (d.x - minY) * scale + offY;
+
+    ctx.strokeStyle = '#2a3347';
+    ctx.lineWidth = 0.5;
+    links.forEach(l => {
+      ctx.beginPath();
+      ctx.moveTo(mx(l.source), my(l.source));
+      ctx.lineTo(mx(l.target), my(l.target));
+      ctx.stroke();
+    });
+
+    nodes.forEach(d => {
+      ctx.beginPath();
+      ctx.arc(mx(d), my(d), isLeaf(d) ? 1.5 : 2, 0, Math.PI * 2);
+      ctx.fillStyle = isLeaf(d) ? '#34d399' : '#60a5fa';
+      ctx.fill();
+    });
+  }
+
+  function updateMinimap(transform) {
+    if (!minimapEnabled) return;
+    drawMinimap();
+  }
+
+  // ─── RESIZE ─────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    if (!root) return;
+    const container = document.getElementById('viz-container');
+    width = container.clientWidth;
+    height = container.clientHeight;
+    svg.attr('width', width).attr('height', height);
+    update(root);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+pandas>=2.0.0
+numpy>=1.24.0
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+hdbscan>=0.8.29
+scipy>=1.10.0
+scikit-learn>=1.2.0
+datasketch>=1.6.4
