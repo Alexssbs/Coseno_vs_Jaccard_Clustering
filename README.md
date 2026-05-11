@@ -8,13 +8,9 @@ Sistema completo para analizar ~237k comentarios de texto corto usando dos méto
 - [Métodos implementados](#métodos-implementados)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Instalación](#instalación)
-- [Ejecución del pipeline](#ejecución-del-pipeline)
-- [Parámetros de configuración](#parámetros-de-configuración)
 - [Resultados generados](#resultados-generados)
 - [Visualización interactiva](#visualización-interactiva)
 - [Rendimiento y tiempos](#rendimiento-y-tiempos)
-- [Solución de problemas](#solución-de-problemas)
-- [Licencia](#licencia)
 
 ---
 
