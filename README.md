@@ -53,10 +53,10 @@ Los resultados se exportan en formato JSON compatible con visualizaciones dendro
 
 ## Estructura del proyecto
 
-# clustering-comentarios
+# Coseno_vs_Jaccard_Clustering
 
 ```text
-clustering-comentarios/
+Coseno_vs_Jaccard_Clustering/
 │
 ├── src/
 │   ├── main.py                      # Pipeline principal
@@ -64,7 +64,8 @@ clustering-comentarios/
 │   ├── method_coseno.py             # Método de similitud de coseno
 │   ├── method_jaccard.py            # Método de similitud de Jaccard
 │   └── checkpoint_utils.py          # Guardado/carga de checkpoints
-│
+│    └── comentarios_solo_texto.csv  # Dataset de 237k de comentarios
+│ 
 ├── results/
 │   ├── clusters_coseno.json         # Asignaciones método coseno
 │   ├── clusters_agregados_coseno.json # Estadísticas por cluster
