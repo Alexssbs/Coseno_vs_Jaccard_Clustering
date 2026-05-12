@@ -1,6 +1,6 @@
 # Pipeline de Clustering de Comentarios
 
-Sistema completo para analizar ~237k comentarios de texto corto usando dos métodos de clustering y exportar resultados para visualización D3.js.
+Sistema completo para analizar 238,782  comentarios de texto corto usando dos métodos de clustering y exportar resultados para visualización D3.js.
 
 ## 📋 Tabla de contenidos
 
@@ -64,7 +64,7 @@ Coseno_vs_Jaccard_Clustering/
 │   ├── method_coseno.py             # Método de similitud de coseno
 │   ├── method_jaccard.py            # Método de similitud de Jaccard
 │   └── checkpoint_utils.py          # Guardado/carga de checkpoints
-│   └── comentarios_solo_texto.csv  # Dataset de 237k comentarios
+│   └── comentarios_solo_texto.csv  # Dataset de comentarios
 │ 
 ├── results/
 │   ├── clusters_coseno.json         # Asignaciones método coseno
